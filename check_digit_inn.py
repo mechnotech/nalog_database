@@ -1,5 +1,5 @@
 #  n10 = ((2*n1 + 4*n2 + 10*n3 + 3*n4 + 5*n5 + 9*n6 + 4*n7 + 6*n8 + 8*n9) mod 11 ) mod 10  - 10 знак ИНН для юрлиц
-from nalog_indexes import inn_diap_dict  # Импортируем словарь с индексами налоговых и числом организаций в них
+from nalog_indexes import inn_diap_list  # Импортируем словарь с индексами налоговых и числом организаций в них
 import psycopg2
 from psycopg2 import sql
 import re
@@ -9,6 +9,7 @@ conn = psycopg2.connect(dbname='main_org_db', user='base_user',
                         password='base_user', host='192.168.10.173')
 cursor = conn.cursor()
 
+
 # Обработка одного ИНН - убираем лишнее возвращаем строку
 def ret_str_inn(dec_inn):
     dec_inn = str(dec_inn)
@@ -17,41 +18,36 @@ def ret_str_inn(dec_inn):
         mystr = '0' + mystr
     return mystr
 
-def give_inn_list(start='0101', finish='0102'):
-    counter = 0
-
+# Возвращает список всех ИНН в базе (не ИП)
+def give_inn_list(start='0100', finish='0109'):
     start_d = int(start) * 1000000
     finish_d = int(finish) * 1000000
-    bar = IncrementalBar('Обработка списка', max=(finish_d-start_d)//1000)
+
     with conn.cursor() as cursor:
         conn.autocommit = True
-        give = sql.SQL(f'''select inn from main 
-        WHERE is_ip is FALSE and inn > {start_d} and inn < {finish_d} 
+        give = sql.SQL(f'''select inn from main_res 
+        WHERE is_ip is FALSE
         ORDER BY inn ASC''')
         cursor.execute(give)
 
         list_inn = []
 
-        #print(ret_str_inn(list[0]), ret_str_inn(list[end-1]))
         for i in cursor.fetchall():
-            # list.append(ret_str_inn(i))  # все ИНН в диапазоне
             list_inn.append(ret_str_inn(i))
 
-            # counter +=1
-        #     if counter % 1000 == 1:
-        #         bar.next()
-        # bar.finish()
-        # print(f'Для налоговой {start} всего записей {len(list_inn)}')
-        # print(f'От {list_inn[0]} до {list_inn[len(list_inn)-1]}')
-        return start, len(list_inn), list_inn[len(list_inn)-1]
-
-sum_all = 0
-for i in inn_diap_dict.values():
-    sum_all += i
-print(sum_all)
+        return list_inn
 
 
+def insert_db_main(values):
+    # print('в main', values)
 
+    with conn.cursor() as cursor:
+        conn.autocommit = True
+        insert = sql.SQL(
+            'INSERT INTO main_res (inn, form_prop, is_ip, categoria, date_ins, comment) VALUES {}').format(
+            sql.SQL(',').join(map(sql.Literal, values))
+        )
+        cursor.execute(insert)
 
 
 def ret_full_inn(inn_as_sting):  # На вход подается ИНН без последнего знака для юрлиц и последних двух для физлиц
@@ -71,6 +67,40 @@ def ret_full_inn(inn_as_sting):  # На вход подается ИНН без 
         return None
 
 
+BigINN = []
+sum_all = 0
+list_new = inn_diap_list
+list_old = give_inn_list()
+bar = IncrementalBar('Создание большого списка: ', max=len(inn_diap_list), suffix='%(percent).1f%% - %(eta)ds')
+for i in range(len(inn_diap_list)):
+    bar.next()
+    for j in range(list_new[i][1] + 1):
+        inn = ret_full_inn(list_new[i][0] + str(j).zfill(5))
+        BigINN.append(inn)
+bar.finish()
+
+print(len(BigINN), len(list_old))
+result = list(set(BigINN) ^ set(list_old))  # Список уникальных ИНН, которых нет в МСП справочнике
+print(len(result))
+nalog_values = []
+bar = IncrementalBar('Запись большого списка в базу: ', max=len(result) // 50000, suffix='%(percent).1f%% - %(eta)ds')
+for i in sorted(result):
+    inn = int(i)
+    form_prop = 'Unknown'
+    is_ip = False
+    categoria = 0
+    date_ins = '01.01.1990'
+    comment = 'Не в МСП'
+    vs = inn, form_prop, is_ip, categoria, date_ins, comment
+    nalog_values.append(vs)
+    if len(nalog_values) == 50000:  # Всталяем блок по 5000 записей в базу кандидатов
+        insert_db_main(nalog_values)
+        nalog_values = []
+        bar.next()
+bar.finish()
+insert_db_main(nalog_values)  # Вставляем хвост от цикла
+
+# result=list(set(BigINN) - set(PresrntINN))
 # print(ret_full_inn('780459960'))
 # inn_fild = len(nalog_list)*99999
 # print('возможных инн:', inn_fild)
