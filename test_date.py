@@ -61,10 +61,12 @@ print(prt(nums))
 
 
 
-
+dtt = '31.12.2019'
 now = dt.datetime.today().strftime("%d.%m.%Y")
 new = dt.date.today()
 new2 = dt.datetime.today().date()
 now2 = dt.date.today()
-tood = dt.datetime.strptime(now, "%d.%m.%Y").date()
 
+tood = dt.datetime.strptime(dtt, "%d.%m.%Y").date()
+
+print(tood, type(tood))
