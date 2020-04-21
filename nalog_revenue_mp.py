@@ -7,19 +7,18 @@ from progress.bar import IncrementalBar
 import psycopg2
 from psycopg2 import sql
 
-
 CPU_UNITS = 4  # multiprocessing.cpu_count()  # Определяем число ядер процесора в системе
 directory = r'E:\Garrett\Downloads\baserev'  # Директоря где лежат разархивироанные файлы XML
 files = os.listdir(directory)  # Получаем список файлов
-#files = files[0:100]
+# files = files[0:100]
 my_dict = np.array_split(files, CPU_UNITS)  # Разделяем список на число ядер
 conn = psycopg2.connect(dbname='main_org_db', user='base_user',
-                                password='base_user', host='192.168.10.173')
+                        password='base_user', host='192.168.10.173')
 cursor = conn.cursor()
+
 
 # Функция для независимого потока, send_end - объект для возврата результата от каждого потока
 def worker(procnum, send_end):
-
     #  Если это поток №1, запустим индикатор прогресса.
     if procnum == 0:
         bar = IncrementalBar('Обработка: используем ' + str(CPU_UNITS) + ' ядер',
@@ -91,7 +90,7 @@ def worker(procnum, send_end):
                 inn_org = i['СведНП']['@ИННЮЛ']
                 income = float(i['СведДохРасх']['@СумДоход'])
                 expenses = float(i['СведДохРасх']['@СумРасход'])
-                #print(year, inn_org, income, expenses)
+                # print(year, inn_org, income, expenses)
                 # Накапливаем данные для базы данных
                 sum_income += income
                 sum_expenses += expenses
@@ -102,8 +101,6 @@ def worker(procnum, send_end):
                 else:
                     vsn = int(inn_org), None
                     not_in_mcp.append(vsn)
-
-
 
         # Вызываем функцию для записи блок в базу данных revenue
 
@@ -128,21 +125,20 @@ def worker(procnum, send_end):
     expenses = 0
     summa = 0
 
-
     # Переберем все файлы в подсписке
     for f in my_dict[procnum - 1]:
         fin = open(directory + '\\' + f, 'r', encoding='utf8')
         xml = fin.read()
         fin.close()
         parsedxml = xmltodict.parse(xml)
-        #try:
+        # try:
         nalog = ip_vs_org(parsedxml)
-        #except Exception:
+        # except Exception:
         #    print(f)
         income += nalog[0]
         expenses += nalog[1]
         summa += len(parsedxml['Файл']['Документ'])
-        #not_in_mcp += nalog[2]
+        # not_in_mcp += nalog[2]
 
         if procnum == 0:  # Если это поток №1 увеличиваем прогресс на один шаг
             bar.next()
@@ -154,13 +150,6 @@ def worker(procnum, send_end):
 
 
 def main():
-    # inp = input('Сколько задействовать CPU ядер (1-' + str(CPU_UNITS) + ')? Enter - испльзовать все :')
-    # try:
-    #     inp = int(inp)
-    # except Exception:
-    #     inp = 8
-    # if 1 <= inp <= CPU_UNITS:
-    #     CPU_UNITS = inp
     tm = dt.datetime.now()
     print('Процесс начат в', tm.strftime('%H:%M:%S'))
     jobs = []
@@ -182,19 +171,16 @@ def main():
         income += i[0]
         expenses += i[1]
         summa += i[2]
-        #not_in_mcp += i[3]
 
     period = dt.datetime.now() - tm
     hours = period.seconds // 3600
     minuts = (period.seconds // 60) % 60
     seconds = period.seconds - minuts * 60
-    print("Процесс занял {} часов  {} минут   {} секунд".format(hours, minuts,seconds))
-    print('Суммарные доходы / расходы по организациям: {:,} млн.р / {:,} млн.р'.format(income//1000000, expenses//1000000))
-    print('Суммарный финансовый результат по МСП {:,} млн.р '.format((income - expenses)//1000000))
+    print("Процесс занял {} часов  {} минут   {} секунд".format(hours, minuts, seconds))
+    print('Суммарные доходы / расходы по организациям: {:,} млн.р / {:,} млн.р'.format(income // 1000000,
+                                                                                       expenses // 1000000))
+    print('Суммарный финансовый результат по МСП {:,} млн.р '.format((income - expenses) // 1000000))
     print('Документов в файле:', summa)
-    #print(not_in_mcp)
-    #print(len(not_in_mcp))
-    #  input('Press any key')
 
 
 if __name__ == '__main__':

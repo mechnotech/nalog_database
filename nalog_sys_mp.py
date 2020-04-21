@@ -7,20 +7,18 @@ from progress.bar import IncrementalBar
 import psycopg2
 from psycopg2 import sql
 
-
 CPU_UNITS = 4  # multiprocessing.cpu_count()  # Определяем число ядер процесора в системе
 directory = r'E:\Garrett\Downloads\basesr'  # Директоря где лежат разархивироанные файлы XML
 files = os.listdir(directory)  # Получаем список файлов
-#files = files[0:1]
+# files = files[0:1]
 my_dict = np.array_split(files, CPU_UNITS)  # Разделяем список на число ядер
-
 conn = psycopg2.connect(dbname='main_org_db', user='base_user',
                         password='base_user', host='192.168.10.173')
 cursor = conn.cursor()
 
+
 # Функция для независимого потока, send_end - объект для возврата результата от каждого потока
 def worker(procnum, send_end):
-
     #  Если это поток №1, запустим индикатор прогресса.
     if procnum == 0:
         bar = IncrementalBar('Обработка: используем ' + str(CPU_UNITS) + ' ядер',
@@ -69,7 +67,7 @@ def worker(procnum, send_end):
                     if d['@ПризнСРП'] == '1':  # СРП
                         crp += 1
                         crp_d = True
-                else:   # Если файл сосотоял всего из одного документа, нужна особая обработка
+                else:  # Если файл сосотоял всего из одного документа, нужна особая обработка
                     try:
                         d = edxml['Файл']['Документ']['СведСНР']
                         inn = edxml['Файл']['Документ']['СведНП']['@ИННЮЛ']
@@ -119,10 +117,9 @@ def worker(procnum, send_end):
         xml = fin.read()
         fin.close()
         parsedxml = xmltodict.parse(xml)
-        #try:
+
         nalog, inn_org = ip_vs_org(parsedxml)
-        #except Exception:
-        #    print(f)
+
         osno += nalog[0]
         usn += nalog[1]
         envd += nalog[2]
@@ -130,7 +127,7 @@ def worker(procnum, send_end):
         esxn += nalog[4]
         usnenvd += nalog[5]
         vsego += sum(nalog)
-        # org += inn_org
+
         summa += len(parsedxml['Файл']['Документ'])
 
         if procnum == 0:  # Если это поток №1 увеличиваем прогресс на один шаг
@@ -143,13 +140,6 @@ def worker(procnum, send_end):
 
 
 def main():
-    # inp = input('Сколько задействовать CPU ядер (1-' + str(CPU_UNITS) + ')? Enter - испльзовать все :')
-    # try:
-    #     inp = int(inp)
-    # except Exception:
-    #     inp = 8
-    # if 1 <= inp <= CPU_UNITS:
-    #     CPU_UNITS = inp
     tm = datetime.datetime.now()
     print('Процесс начат в', tm.strftime('%H:%M:%S'))
     jobs = []
@@ -178,10 +168,9 @@ def main():
     hours = period.seconds // 3600
     minuts = (period.seconds // 60) % 60
     seconds = period.seconds - minuts * 60
-    print("Процесс занял {} часов  {} минут   {} секунд".format(hours, minuts,seconds))
+    print("Процесс занял {} часов  {} минут   {} секунд".format(hours, minuts, seconds))
     print('УСН:', usn, 'ЕНВД:', envd, 'СРП:', crp, 'ЕСХН:', esxn, 'УСН+ЕНВД', usnenvd)
     print('Документов в файле:', summa)
-    #  input('Press any key')
 
 
 if __name__ == '__main__':

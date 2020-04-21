@@ -7,23 +7,20 @@ from progress.bar import IncrementalBar
 import psycopg2
 from psycopg2 import sql
 
-
-
-CPU_UNITS = 5 # multiprocessing.cpu_count()  # Определяем число ядер процесора в системе
+CPU_UNITS = 5  # multiprocessing.cpu_count()  # Определяем число ядер процесора в системе
 directory = r'E:\Garrett\Downloads\baseul'  # Директория где лежат разархивироанные файлы XML
 files = os.listdir(directory)
-#files = files[0:10]  # Получаем срез из списка файлов
+# files = files[0:10]  # Получаем срез из списка файлов
 my_dict = np.array_split(files, CPU_UNITS)  # Разделяем список на число ядер
-
 conn = psycopg2.connect(dbname='main_org_db', user='base_user',
                         password='base_user', host='192.168.10.173')
 cursor = conn.cursor()
 
+
 # Функция для независимого потока, send_end - объект для возврата результата от каждого потока
 def worker(procnum, send_end):
-
     def insert_db_main(values):
-        #print('в main', values)
+        # print('в main', values)
         with conn.cursor() as cursor:
             conn.autocommit = True
             insert = sql.SQL(
@@ -31,7 +28,6 @@ def worker(procnum, send_end):
                 sql.SQL(',').join(map(sql.Literal, values))
             )
             cursor.execute(insert)
-
 
     def insert_db_region(reg_values):
         with conn.cursor() as cursor:
@@ -41,7 +37,6 @@ def worker(procnum, send_end):
                 sql.SQL(',').join(map(sql.Literal, reg_values))
             )
             cursor.execute(insert)
-
 
     #  Если это поток №0, запустим индикатор прогресса.
     if procnum == 0:
@@ -132,9 +127,9 @@ def worker(procnum, send_end):
 
                 # Блок определения формы собственности
 
-                if 'ОБЩЕСТВА' in n_ch and 'ОГРАНИЧЕННОЙ'in n_ch and 'ОТВЕТСТВЕННОСТЬЮ' in n_ch:
+                if 'ОБЩЕСТВА' in n_ch and 'ОГРАНИЧЕННОЙ' in n_ch and 'ОТВЕТСТВЕННОСТЬЮ' in n_ch:
                     forma = "ООО"
-                elif 'ОБЩЕСТВО' in n_ch and 'ОГРАНИЧЕННОЙ'in n_ch and 'ОТВЕТСТВЕННОСТЬЮ' in n_ch:
+                elif 'ОБЩЕСТВО' in n_ch and 'ОГРАНИЧЕННОЙ' in n_ch and 'ОТВЕТСТВЕННОСТЬЮ' in n_ch:
                     forma = "ООО"
                 elif 'ФЕРМЕРСКОЕ' in n_ch and 'ХОЗЯЙСТВО' in n_ch:
                     forma = "КФХ"
@@ -209,7 +204,7 @@ def worker(procnum, send_end):
                     miss += 1
                     ot = None
 
-                #print('\n', comment, n)
+                # print('\n', comment, n)
                 if isinstance(name, str):
                     name = name.upper()
 
@@ -221,9 +216,6 @@ def worker(procnum, send_end):
                 svr = inn, region, reg_type, reg_name, ra_type, ra_name, nas_type, nas_name
                 reg_values.append(svr)
                 inn_ip += 1
-
-
-
 
         # Вызываем функции записи в БД результатов обработки одного файла xml
         insert_db_main(values)
@@ -256,13 +248,6 @@ def worker(procnum, send_end):
 
 
 def main():
-    # inp = input('Сколько задействовать CPU ядер (1-' + str(CPU_UNITS) + ')? Enter - испльзовать все :')
-    # try:
-    #     inp = int(inp)
-    # except Exception:
-    #     inp = 8
-    # if 1 <= inp <= CPU_UNITS:
-    #     CPU_UNITS = inp
     tm = datetime.datetime.now()
     print('Процесс начат в', tm.strftime('%H.%M.%S'))
     jobs = []
@@ -291,7 +276,6 @@ def main():
     print('Количество ИП РФ:', ip, 'Организаций:', org)
     print('Всего записей:', summa, 'из них обработано:', org + ip)
     print('Аномалий', miss)
-    #input('Press any key')
 
 
 if __name__ == '__main__':
