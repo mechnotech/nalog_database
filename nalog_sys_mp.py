@@ -7,7 +7,7 @@ from progress.bar import IncrementalBar
 import psycopg2
 from psycopg2 import sql
 
-CPU_UNITS = 4  # multiprocessing.cpu_count()  # Определяем число ядер процесора в системе
+CPU_UNITS = 1  # multiprocessing.cpu_count()  # Определяем число ядер процесора в системе
 directory = r'E:\Garrett\Downloads\basesr'  # Директоря где лежат разархивироанные файлы XML
 files = os.listdir(directory)  # Получаем список файлов
 # files = files[0:1]
@@ -23,9 +23,20 @@ def worker(procnum, send_end):
     if procnum == 0:
         bar = IncrementalBar('Обработка: используем ' + str(CPU_UNITS) + ' ядер',
                              max=len(my_dict[0]), suffix='%(percent).1f%% - %(eta)ds')
+    # Проверка, есть ли ИНН в основной базе
+    def is_in_msp(inn_org):
+        cursor.execute(f'SELECT inn FROM main WHERE inn={inn_org}')
+        if cursor.fetchone() is None:
+
+            return False
+        else:
+
+            return True
 
     # Функция записи в базу данных nalog_sys
     def insert_db_nalog_sys(nalog_values):
+        conn = psycopg2.connect(dbname='main_org_db', user='base_user',
+                                password='base_user', host='192.168.10.173')
         with conn.cursor() as cursor:
             conn.autocommit = True
             insert = sql.SQL(
@@ -34,7 +45,7 @@ def worker(procnum, send_end):
             )
             cursor.execute(insert)
 
-    # Функция вычисляет число ИП и Организаций для данного набора из файла XML
+    # Функция вычисляет систему налога
     def ip_vs_org(edxml):
         #  0 - основная система, 1 - УСН + ЕНВД, 2 - УСН, 3 - Енвд, 4 - СРП, 5 - ЕСХН
         osno = usn = envd = crp = esxn = usnenvd = err = 0
@@ -67,6 +78,11 @@ def worker(procnum, send_end):
                     if d['@ПризнСРП'] == '1':  # СРП
                         crp += 1
                         crp_d = True
+                    vs = inn, usn_d, envd_d, crp_d, esxn_d
+                    if is_in_msp(inn) is True:  # Если ИНН есть в основной таблице, добавляем в список
+                        nalog_values.append(vs)
+                    else:
+                        pass
                 else:  # Если файл сосотоял всего из одного документа, нужна особая обработка
                     try:
                         d = edxml['Файл']['Документ']['СведСНР']
@@ -88,18 +104,24 @@ def worker(procnum, send_end):
                             crp += 1
                             crp_d = True
 
+                        vs = inn, usn_d, envd_d, crp_d, esxn_d
+                        if is_in_msp(inn) is True:  # Если ИНН есть в основной таблице, добавляем в список
+                            nalog_values.append(vs)
+                        else:
+                            pass
+
                     except Exception:
                         print(edxml, comment)
                         pass
                 # Накапливаем данные для базы данных
 
-                vs = inn, usn_d, envd_d, crp_d, esxn_d
-                nalog_values.append(vs)
+
 
         # Вызываем функцию для записи блок в базу данных nalog_sys
         try:
             insert_db_nalog_sys(nalog_values)
-        except Exception:
+        except Exception as Error:
+            #print(Error)
             pass
 
         nalog = osno, usn, envd, crp, esxn, usnenvd
