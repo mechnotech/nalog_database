@@ -1,9 +1,6 @@
 venv
 __pycache__
 .idea
-test_date.py
-xml_parser.py
-nalog_indexes.py
 tests
 
 
